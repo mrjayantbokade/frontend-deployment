@@ -33,7 +33,7 @@ jobs:
           [ -f "dist/index.html" ] || { echo "index.html not found"; exit 1; }
           [ -d "public" ] || { echo "public directory not found"; exit 1; }
 
-          tar -czf static-files.tar.gz dist public .env
+          tar -czf static-files.tar.gz dist public
 
       - name: Install sshpass
         run: sudo apt-get install -y sshpass
