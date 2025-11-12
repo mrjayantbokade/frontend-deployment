@@ -1,0 +1,79 @@
+name: Prod-Deployment(shreyash.aceint.ai)
+
+on:
+  workflow_dispatch:
+
+
+jobs:
+  build_and_deploy_prod:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '21.6.1'
+
+      - name: Install dependencies
+        run: npm install --force
+
+
+      - name: Build application
+        run: |
+          npm run build
+          ls -al dist/
+          
+
+      - name: Archive static files
+        run: |
+          [ -d "dist/assets" ] || { echo "assets directory not found"; exit 1; }
+          [ -d "dist/img" ] || { echo "img directory not found"; exit 1; }
+          [ -f "dist/index.html" ] || { echo "index.html not found"; exit 1; }
+          [ -d "public" ] || { echo "public directory not found"; exit 1; }
+
+          tar -czf static-files.tar.gz dist public .env
+
+      - name: Install sshpass
+        run: sudo apt-get install -y sshpass
+
+
+      - name: Set production deploy path
+        id: set_path
+        run: echo "path=/root/production/shreyash.aceint.ai/frontend/" >> $GITHUB_OUTPUT
+
+      - name: Upload static files to production server
+        run: |
+          sshpass -p "${{ secrets.SSH_PASSWORD }}" scp -o StrictHostKeyChecking=no static-files.tar.gz \
+          ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ steps.set_path.outputs.path }}
+
+      - name: Extract & Deploy on production server
+        run: |
+          sshpass -p "${{ secrets.SSH_PASSWORD }}" ssh -o StrictHostKeyChecking=no \
+          ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+          set -e
+
+          FRONTEND_DIR="shreyash.aceint.ai"
+          cd /root/production/$FRONTEND_DIR/frontend/
+
+          TIMESTAMP=$(date +'%Y%m%d%H%M%S')
+          mkdir -p backup/$TIMESTAMP
+          [ -d "dist" ] && mv dist backup/$TIMESTAMP/
+          [ -d "public" ] && mv public backup/$TIMESTAMP/
+          [ -f ".env" ] && mv .env backup/$TIMESTAMP/
+
+          tar -xzf static-files.tar.gz
+          rm static-files.tar.gz
+
+          # Clean old files and replace with new build
+          rm -rf assets index.html favicon.ico img || true
+          cp -r dist/* .
+
+          # Fix permissions for NGINX
+          chown -R www-data:www-data assets img || true
+          chown www-data:www-data index.html || true
+
+          systemctl restart nginx
+          EOF
