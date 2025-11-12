@@ -30,7 +30,6 @@ jobs:
       - name: Archive static files
         run: |
           [ -d "dist/assets" ] || { echo "assets directory not found"; exit 1; }
-          [ -d "dist/img" ] || { echo "img directory not found"; exit 1; }
           [ -f "dist/index.html" ] || { echo "index.html not found"; exit 1; }
           [ -d "public" ] || { echo "public directory not found"; exit 1; }
 
